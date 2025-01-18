@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>C in JavaScript Demo</title>
+</head>
+<body>
+    <h2>C + JavaScript Integration Demo</h2>
+    <div id="output"></div>
+
+    <script>
+        // This is the C code that will be compiled to WebAssembly
+        const cCode = `
+            #include <emscripten.h>
+            #include <stdio.h>
+
+            // Export these functions to JavaScript
+            EMSCRIPTEN_KEEPALIVE
+            int add(int a, int b) {
+                return a + b;
+            }
+
+            EMSCRIPTEN_KEEPALIVE
+            int fibonacci(int n) {
+                if (n <= 1) return n;
+                return fibonacci(n-1) + fibonacci(n-2);
+            }
+
+            EMSCRIPTEN_KEEPALIVE
+            void printMessage() {
+                printf("Hello from C!\\n");
+            }
+        `;
+
+        // Create a temporary element to show loading status
+        const output = document.getElementById('output');
+        output.innerHTML = 'Loading WebAssembly...';
+
+        // Function to load and initialize the WebAssembly module
+        async function loadWasm() {
+            // Create a new Blob with our C code
+            const blob = new Blob([cCode], { type: 'text/c' });
+            const url = URL.createObjectURL(blob);
+
+            try {
+                // Initialize the WebAssembly module
+                const response = await fetch('https://wasdk.github.io/WasmFiddle/wasdk/wasdk.js');
+                const wasmCode = await response.text();
+                eval(wasmCode);
+
+                // Compile our C code
+                const module = await WASDK.compileC(cCode);
+                
+                // Add the functions to the window object for easy access
+                window.add = module.cwrap('add', 'number', ['number', 'number']);
+                window.fibonacci = module.cwrap('fibonacci', 'number', ['number']);
+                window.printMessage = module.cwrap('printMessage', null, []);
+
+                // Show some example usage
+                output.innerHTML = `
+                    <h3>Results:</h3>
+                    <p>add(5, 3) = ${add(5, 3)}</p>
+                    <p>fibonacci(10) = ${fibonacci(10)}</p>
+                `;
+
+                // Call the C print function
+                printMessage();
+
+            } catch (error) {
+                output.innerHTML = `Error: ${error.message}`;
+                console.error(error);
+            }
+        }
+
+        // Load everything when the page loads
+        window.onload = loadWasm;
+    </script>
+</body>
+</html>
